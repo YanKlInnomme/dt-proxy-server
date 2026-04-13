@@ -74,6 +74,12 @@ The proxy acts as a **secure and efficient bridge**, solving CORS issues while i
 
 ---
 
+## 📥 Download
+
+👉 https://github.com/YanKlInnomme/dt-proxy-server/releases/latest
+
+---
+
 ## 🚀 Installation
 
 ### 🪟 Windows (Recommended)
