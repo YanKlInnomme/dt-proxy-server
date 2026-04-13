@@ -1,0 +1,28 @@
+{
+  "name": "dt-proxy-server",
+  "version": "1.0.0",
+  "description": "Local proxy server for the Deep Translate Foundry VTT module. Handles DeepL API requests, batch translation, and session-based caching while keeping API keys on the client side.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"No tests defined\" && exit 0"
+  },
+  "keywords": [
+    "deepl",
+    "translation",
+    "proxy",
+    "foundryvtt",
+    "foundry-vtt",
+    "deep-translate",
+    "rpg",
+    "api-proxy"
+  ],
+  "author": "YanK <contact@yanklinnomme.fr> (https://yanklinnomme.fr)",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "deepl-node": "^1.26.0",
+    "express": "^5.2.1"
+  }
+}
