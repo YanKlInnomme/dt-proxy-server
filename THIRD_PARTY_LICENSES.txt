@@ -1,0 +1,33 @@
+Deep Translate Proxy — Third Party Licenses
+
+This software includes the following third-party libraries:
+
+---
+
+express
+License: MIT
+https://github.com/expressjs/express
+
+---
+
+cors
+License: MIT
+https://github.com/expressjs/cors
+
+---
+
+deepl-node
+License: MIT
+https://github.com/DeepLcom/deepl-node
+
+---
+
+These libraries are distributed under their respective licenses.
+All rights remain with their original authors.
+
+---
+
+Note:
+This project uses the DeepL API but does not redistribute it.
+Use of the DeepL service is subject to DeepL's Terms of Service:
+https://www.deepl.com/pro-license

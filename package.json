@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "build": "pkg .",
     "test": "echo \"No tests defined\" && exit 0"
   },
   "keywords": [
@@ -14,15 +15,33 @@
     "foundryvtt",
     "foundry-vtt",
     "deep-translate",
-    "rpg",
+    "ttrpg",
     "api-proxy"
   ],
   "author": "YanK <contact@yanklinnomme.fr> (https://yanklinnomme.fr)",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
     "cors": "^2.8.6",
     "deepl-node": "^1.26.0",
     "express": "^5.2.1"
-  }
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "bin": "server.js",
+  "pkg": {
+    "targets": [
+      "node18-win-x64",
+      "node18-linux-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YanKlInnomme/dt-proxy-server"
+  },
+  "bugs": {
+    "url": "https://github.com/YanKlInnomme/dt-proxy-server/issues"
+  },
+  "homepage": "https://yanklinnomme.fr"
 }
