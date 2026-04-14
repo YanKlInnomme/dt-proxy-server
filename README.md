@@ -4,32 +4,32 @@
 ![Docker](https://img.shields.io/badge/docker-supported-blue)
 ![Foundry VTT](https://img.shields.io/badge/foundry-vtt-orange)
 
-# 🌐 Deep Translate Proxy
+# Deep Translate Proxy
 
 Local proxy server designed for the **Deep Translate** module for Foundry VTT.
 It acts as a secure bridge between Foundry and the DeepL API, enabling efficient batch translation with session-based caching.
 
 ---
 
-## ✨ Features
+## Features
 
-* 🔁 **Batch translation** optimized for Foundry journals and rich content
-* ⚡ **Session-based cache** to avoid duplicate API costs
-* 🔒 **API key remains on the client side**
-* 🧠 **HTML-aware translation** (preserves formatting)
-* 🖥️ Works locally, via Docker, or as a standalone executable
-* 🎯 Built specifically for **Foundry VTT workflows**
+* **Batch translation** optimized for Foundry journals and rich content
+* **Session-based cache** to avoid duplicate API costs
+* **API key remains on the client side**
+* **HTML-aware translation** (preserves formatting)
+* Works locally, via Docker, or as a standalone executable
+* Built specifically for **Foundry VTT workflows**
 
 ---
 
-## 🧩 Requirements
+## Requirements
 
 * A valid **DeepL API key**
 * Foundry VTT with the **Deep Translate** module installed
 
 ---
 
-## 💡 Why use a proxy?
+## Why use a proxy?
 
 DeepL’s API cannot be called directly from Foundry VTT (or any browser-based environment) due to **CORS restrictions**.
 This results in errors such as:
@@ -38,33 +38,33 @@ This results in errors such as:
 Failed to fetch
 ```
 
-### 🧱 The usual workaround
+### The usual workaround
 
 Some solutions rely on a **remote proxy server** to bypass this limitation.
 However, this introduces several drawbacks:
 
-* 🔓 Your **API key is sent to a third-party server**
-* 📄 Your **translated content passes through an external service**
-* ⚠️ You depend on infrastructure you do not control
-* 🐌 Potential performance bottlenecks
+* Your **API key is sent to a third-party server**
+* Your **translated content passes through an external service**
+* You depend on infrastructure you do not control
+* Potential performance bottlenecks
 
 ---
 
-### 🟢 Deep Translate approach
+### Deep Translate approach
 
 Deep Translate uses a **local proxy server running on your machine**.
 
 This provides key advantages:
 
-* 🔒 **Full control over your API key**
-* 🏠 **All data remains local**
-* ⚡ **Faster translations (no external relay)**
-* 🧠 **Built-in caching reduces API usage and cost**
-* 🛠️ **Full control over your translation pipeline**
+* **Full control over your API key**
+* **All data remains local**
+* **Faster translations (no external relay)**
+* **Built-in caching reduces API usage and cost**
+* **Full control over your translation pipeline**
 
 ---
 
-### 🔄 How it works
+### How it works
 
 ```
 Foundry VTT → Local Proxy → DeepL API → Local Proxy → Foundry VTT
@@ -74,15 +74,15 @@ The proxy acts as a **secure and efficient bridge**, solving CORS issues while i
 
 ---
 
-## 📥 Download
+## Download
 
 👉 https://github.com/YanKlInnomme/dt-proxy-server/releases/latest
 
 ---
 
-## 🚀 Installation
+## Installation
 
-### 🪟 Windows (Recommended)
+### Windows (Recommended)
 
 1. Download the `.exe` file
 2. Double-click to launch
@@ -92,7 +92,7 @@ The proxy acts as a **secure and efficient bridge**, solving CORS issues while i
 
 ---
 
-### 🐧 Linux
+### Linux
 
 ```bash
 chmod +x dt-proxy-server-linux
@@ -103,7 +103,7 @@ You will be prompted to choose a port (default: `3001`).
 
 ---
 
-### 💻 Node.js
+### Node.js
 
 ```bash
 git clone https://github.com/YanKlInnomme/dt-proxy-server
@@ -116,7 +116,7 @@ You will be prompted to choose a port (default: `3001`).
 
 ---
 
-### 🐳 Docker
+### Docker
 
 #### Build the image
 
@@ -130,7 +130,7 @@ docker build -t dt-proxy-server .
 docker run -p 3001:3001 dt-proxy-server
 ```
 
-👉 Available at:
+Available at:
 
 ```
 http://localhost:3001
@@ -138,7 +138,7 @@ http://localhost:3001
 
 ---
 
-## ⚙️ Configuration (Foundry VTT)
+## Configuration (Foundry VTT)
 
 In your **Deep Translate module settings**:
 
@@ -153,17 +153,17 @@ http://localhost:3001
 
 ---
 
-## 🔄 Usage
+## Usage
 
 1. Launch the proxy
 2. Start Foundry VTT
 3. Use **Deep Translate** normally
 
-👉 All translations automatically go through the proxy.
+All translations automatically go through the proxy.
 
 ---
 
-## 📊 API Endpoints
+## API Endpoints
 
 ### `POST /translate`
 
@@ -219,7 +219,7 @@ Translate multiple texts.
 
 ---
 
-## 🛠️ Development
+## Development
 
 ```bash
 npm install
@@ -234,7 +234,7 @@ node server.js --port=4000
 
 ---
 
-## 📦 Build (Executable)
+## Build (Executable)
 
 ```bash
 npm run build
@@ -250,16 +250,16 @@ Output:
 
 ---
 
-## 🧑‍💻 Author
+## Author
 
 **YanK**
-🌐 https://yanklinnomme.fr
-✉️ [contact@yanklinnomme.fr](mailto:contact@yanklinnomme.fr)
-💬 Discord: yanklinnomme
+https://yanklinnomme.fr
+[contact@yanklinnomme.fr](mailto:contact@yanklinnomme.fr)
+Discord: yanklinnomme
 
 ---
 
-## 📜 License
+## License
 
 MIT — see LICENSE file for details  
 Includes third-party libraries under MIT licenses
