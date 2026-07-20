@@ -1,0 +1,17 @@
+services:
+  deep-translate-proxy:
+    image: deep-translate-proxy:latest
+    build: .
+    pull_policy: never
+    container_name: deep-translate-proxy
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      ALLOWED_ORIGINS: "http://localhost:30000,http://127.0.0.1:30000"
+      DT_PROXY_ALLOW_INSECURE_NETWORK: "true"
+    volumes:
+      - deep-translate-proxy-data:/data
+    restart: unless-stopped
+
+volumes:
+  deep-translate-proxy-data:

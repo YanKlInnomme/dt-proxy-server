@@ -1,20 +1,23 @@
-# Image Node légère
+# Lightweight Node image
 FROM node:18-alpine
 
-# Dossier de travail
+# Working directory
 WORKDIR /app
 
-# Copier package.json
+# Copy package manifests
 COPY package*.json ./
 
-# Installer dépendances
+# Install production dependencies
 RUN npm install --omit=dev
 
-# Copier le reste
+# Copy the remaining files
 COPY . .
 
-# Port utilisé par ton proxy
+# Port used by the proxy
+ENV HOST=0.0.0.0 \
+    DT_PROXY_CONFIG=/data/config.json
+VOLUME ["/data"]
 EXPOSE 3001
 
-# Lancer le serveur
+# Start the server
 CMD ["node", "server.js"]
