@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package manifests
 COPY package*.json ./
 
-# Install production dependencies
-RUN npm install --omit=dev
+# Install the exact production dependencies recorded in package-lock.json
+RUN npm ci --omit=dev
 
 # Copy the remaining files
 COPY . .

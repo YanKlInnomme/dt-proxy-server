@@ -26,6 +26,8 @@ It acts as a secure bridge between Foundry and the DeepL API, enabling efficient
 
 * A valid **DeepL API key**
 * Foundry VTT with the **Deep Translate** module installed
+* **Node.js 18 or later** only when running the proxy from source (Node.js is
+  already included in the standalone executables and Docker image)
 
 ---
 
@@ -76,7 +78,12 @@ The proxy acts as a **secure and efficient bridge**, solving CORS issues while i
 
 ## Download
 
-👉 https://github.com/YanKlInnomme/dt-proxy-server/releases/latest
+Ready-to-run Windows and Linux executables are published as assets on the
+[latest GitHub release](https://github.com/YanKlInnomme/dt-proxy-server/releases/latest).
+
+The Git repository contains the source code only. Generated dependencies
+(`node_modules/`) and build artifacts (`dist/`) are intentionally excluded and
+must not be downloaded from the repository tree.
 
 ---
 
@@ -84,7 +91,7 @@ The proxy acts as a **secure and efficient bridge**, solving CORS issues while i
 
 ### Windows (Recommended)
 
-1. Download the `.exe` file
+1. Download the Windows `.exe` from the latest GitHub release
 2. Double-click to launch
 3. Choose a port (default: `3001`)
 
@@ -93,6 +100,8 @@ The proxy acts as a **secure and efficient bridge**, solving CORS issues while i
 ---
 
 ### Linux
+
+Download the Linux executable from the latest GitHub release, then run:
 
 ```bash
 chmod +x dt-proxy-server-linux
@@ -120,11 +129,13 @@ node server.js --regenerate-token
 ```bash
 git clone https://github.com/YanKlInnomme/dt-proxy-server
 cd dt-proxy-server
-npm install
-node server.js
+npm ci
+npm start
 ```
 
-You will be prompted to choose a port (default: `3001`).
+`npm ci` recreates the ignored `node_modules/` directory from
+`package-lock.json`. You will then be prompted to choose a port (default:
+`3001`).
 
 ---
 
@@ -407,9 +418,12 @@ To use a synchronized glossary, add `source_lang` and `glossary_id` to
 ## Development
 
 ```bash
-npm install
-node server.js
+npm ci
+npm start
 ```
+
+The generated `node_modules/` directory is local to your checkout and is not
+committed to Git.
 
 Optional:
 
@@ -427,7 +441,11 @@ Building the standalone executables requires Node.js 22 or later.
 npm run build
 ```
 
-Output:
+The build recreates the local `dist/` directory. This directory is intentionally
+ignored by Git: publish its files as GitHub release assets instead of committing
+them to the repository.
+
+Expected output for version 2.0.0:
 
 ```
 /dist

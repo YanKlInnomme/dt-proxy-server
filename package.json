@@ -21,6 +21,9 @@
   ],
   "author": "YanK <contact@yanklinnomme.fr> (https://yanklinnomme.fr)",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "cors": "^2.8.6",
     "deepl-node": "^1.26.0",
