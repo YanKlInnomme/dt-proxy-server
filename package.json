@@ -1,6 +1,6 @@
 {
   "name": "dt-proxy-server",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Local proxy server for Deep Translate. Stores the DeepL API key outside Foundry and authenticates module requests with a dedicated proxy token.",
   "main": "server.js",
   "scripts": {

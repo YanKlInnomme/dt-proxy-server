@@ -4,7 +4,7 @@ const os = require("os");
 const path = require("path");
 const { promises: fs } = require("fs");
 
-const { completeWebSetup } = require("../runtime-config");
+const { completeWebSetup, resolvePaths } = require("../runtime-config");
 const {
   escapeHtml,
   parseCookies,
@@ -12,6 +12,17 @@ const {
   setupAccessGranted,
   setupPage
 } = require("../setup-ui");
+
+test("uses product-specific files by default so colocated executables cannot collide", () => {
+  const previous = process.env.DT_PROXY_CONFIG;
+  delete process.env.DT_PROXY_CONFIG;
+  try {
+    assert.equal(path.basename(resolvePaths().configPath), "deep-translate-proxy-config.json");
+  } finally {
+    if (previous === undefined) delete process.env.DT_PROXY_CONFIG;
+    else process.env.DT_PROXY_CONFIG = previous;
+  }
+});
 
 test("requires the unguessable setup token independently of the Host header", () => {
   assert.equal(setupAccessGranted("", "setup-secret", "setup-secret"), true);

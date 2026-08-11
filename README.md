@@ -109,7 +109,8 @@ chmod +x dt-proxy-server-linux
 ```
 
 On first launch, you will be prompted for the port and the DeepL API key. The
-proxy writes general options to `config.json`, secrets to `secrets.json`, and
+proxy writes general options to `deep-translate-proxy-config.json`, secrets to
+`deep-translate-proxy-secrets.json`, and
 prints an `address#token` connection string to copy into Foundry VTT.
 
 The secrets file is created with owner-only permissions on platforms that
@@ -445,15 +446,15 @@ The build recreates the local `dist/` directory. This directory is intentionally
 ignored by Git: publish its files as GitHub release assets instead of committing
 them to the repository.
 
-Expected output for version 2.0.0:
+Expected output for version 2.0.1:
 
 ```
 /dist
-  deep-translate-proxy-v2.0.0-windows-x64.exe
-  deep-translate-proxy-v2.0.0-windows-x64.zip
-  deep-translate-proxy-v2.0.0-linux-x64
-  deep-translate-proxy-v2.0.0-linux-x64.zip
-  SHA256SUMS-2.0.0.txt
+  deep-translate-proxy-v2.0.1-windows-x64.exe
+  deep-translate-proxy-v2.0.1-windows-x64.zip
+  deep-translate-proxy-v2.0.1-linux-x64
+  deep-translate-proxy-v2.0.1-linux-x64.zip
+  SHA256SUMS-2.0.1.txt
 ```
 
 The ZIP packages also contain the README, project license, and third-party
@@ -462,6 +463,11 @@ license notices. Publish the checksum file alongside the downloads.
 ---
 
 ## Changelog
+
+### Version 2.0.1
+
+* Isolated standalone configuration and secrets with product-specific filenames
+* Prevented collisions when multiple YanK standalone services share one folder
 
 ### Version 2.0.0
 

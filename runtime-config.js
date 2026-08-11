@@ -25,7 +25,7 @@ const DEFAULT_CONFIG = {
     glossaries: 120
   },
   tls: { enabled: false, certificateFile: "", privateKeyFile: "" },
-  secretsFile: "secrets.json"
+  secretsFile: "deep-translate-proxy-secrets.json"
 };
 
 function environmentBoolean(value, fallback = false) {
@@ -117,7 +117,9 @@ function normalizeOrigins(value) {
 
 function resolvePaths() {
   const applicationDirectory = process.pkg ? path.dirname(process.execPath) : __dirname;
-  const configPath = path.resolve(process.env.DT_PROXY_CONFIG || path.join(applicationDirectory, "config.json"));
+  const configPath = path.resolve(
+    process.env.DT_PROXY_CONFIG || path.join(applicationDirectory, "deep-translate-proxy-config.json")
+  );
   return { applicationDirectory, configPath };
 }
 
@@ -293,6 +295,7 @@ module.exports = {
   isLoopbackHost,
   loadRuntimeConfiguration,
   regenerateAccessToken,
+  resolvePaths,
   validateNetworkSecurity,
   validatePort,
   writePrivateJson
