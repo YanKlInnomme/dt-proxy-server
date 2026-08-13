@@ -20,7 +20,8 @@ const {
   completeWebSetup,
   connectionString,
   loadRuntimeConfiguration,
-  regenerateAccessToken
+  regenerateAccessToken,
+  rememberFoundryOrigin
 } = require("./runtime-config");
 const {
   parseCookies,
@@ -35,6 +36,7 @@ const {
 /* ----------------------------------------- */
 
 function banner() {
+  process.title = "Deep Translate Proxy";
   console.log("====================================");
   console.log("   Deep Translate Proxy");
   console.log("====================================");
@@ -282,7 +284,7 @@ function createRateLimiter(rateLimits, requestWindows = new Map()) {
     if (maximum === 0) return next();
 
     const now = Date.now();
-    const key = `${bucket}:${req.ip}`;
+    const key = `${bucket}:${req.tenantId || req.ip}`;
     let window = requestWindows.get(key);
     if (!window || now - window.startedAt >= rateLimits.windowMs) {
       window = { startedAt: now, count: 0 };
@@ -326,10 +328,18 @@ async function startServer() {
   const PORT = runtime.config.port;
   const HOST = runtime.config.host;
 
-  console.log(`🚀 Starting proxy at http://${HOST}:${PORT}...\n`);
-
   const app = express();
   app.disable("x-powered-by");
+  app.use((req, res, next) => {
+    res.set({
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "no-referrer",
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      "Cache-Control": req.path === "/health" ? "no-cache" : "no-store"
+    });
+    next();
+  });
   if (runtime.config.trustProxyHops > 0) app.set("trust proxy", runtime.config.trustProxyHops);
 
   const setupCsrfToken = crypto.randomBytes(32).toString("base64url");
@@ -397,10 +407,19 @@ async function startServer() {
           : "The key could not be verified with DeepL. Check your connection and try again.";
         return res.status(error instanceof deepl.AuthorizationError ? 401 : 502)
           .type("html")
-          .send(setupPage({ csrfToken: setupCsrfToken, error: message }));
+          .send(setupPage({ csrfToken: setupCsrfToken, error: message, values: req.body }));
       }
 
-      await completeWebSetup(runtime, apiKey);
+      try {
+        await completeWebSetup(runtime, apiKey, req.body);
+      } catch (error) {
+        return res.status(400).type("html").send(setupPage({
+          csrfToken: setupCsrfToken,
+          error: error.message,
+          values: req.body
+        }));
+      }
+      app.set("trust proxy", runtime.config.trustProxyHops || false);
       const connection = connectionString(runtime);
       console.log("✅ Docker setup completed");
       console.log("Connection string to copy into Foundry VTT:");
@@ -423,7 +442,6 @@ async function startServer() {
     });
   });
 
-  const allowedOrigins = getAllowedOrigins(runtime.config.allowedOrigins);
   app.use((req, res, next) => {
     if (req.path === "/health" || req.get("origin") || runtime.config.allowNoOrigin) return next();
     return res.status(403).json({
@@ -431,14 +449,20 @@ async function startServer() {
       code: "ORIGIN_REQUIRED"
     });
   });
-  app.use(cors({
-    origin(origin, callback) {
-      if (isAllowedOrigin(origin, allowedOrigins)) {
-        return callback(null, true);
-      }
-      return callback(new Error("Origin not allowed"));
+  app.use((req, res, next) => {
+    const origin = req.get("origin");
+    if (!origin || req.method === "OPTIONS" || req.path === "/health" ||
+        isAllowedOrigin(origin, getAllowedOrigins(runtime.config.allowedOrigins))) {
+      return next();
     }
-  }));
+    if (runtime.config.deploymentMode === "remote" &&
+        tokensEqual(getAccessToken(req), runtime.secrets.accessToken)) {
+      req.rememberFoundryOrigin = origin;
+      return next();
+    }
+    return res.status(403).json({ error: "Origin not allowed" });
+  });
+  app.use(cors({ origin: true }));
 
   app.use((req, res, next) => {
     if (req.path === "/health") return next();
@@ -446,8 +470,16 @@ async function startServer() {
       res.set("WWW-Authenticate", 'Bearer realm="Deep Translate Proxy"');
       return res.status(401).json({ error: "Invalid or missing proxy token", code: "PROXY_TOKEN_INVALID" });
     }
+    req.tenantId = runtime.secrets.accountId;
     req.deepLApiKey = runtime.secrets.deeplApiKey;
-    return next();
+    if (!req.deepLApiKey || req.deepLApiKey.length > 200) return res.status(422).json({ error: "A valid DeepL API key is required", code: "DEEPL_KEY_MISSING" });
+    if (!req.rememberFoundryOrigin) return next();
+    rememberFoundryOrigin(runtime, req.rememberFoundryOrigin)
+      .then(origin => {
+        console.log(`Foundry origin allowed automatically: ${origin}`);
+        next();
+      })
+      .catch(error => next(error));
   });
 
   app.use(createRateLimiter(runtime.config.rateLimits));
@@ -502,13 +534,14 @@ async function startServer() {
         return res.status(400).json({ error: "Payload too large" });
 
       const translator = new deepl.Translator(req.deepLApiKey);
-      const clientId = runtime.secrets.accountId;
+      const clientId = req.tenantId;
+      const apiKeyScope = crypto.createHash("sha256").update(req.deepLApiKey).digest("hex").slice(0, 16);
       const results = new Array(texts.length);
       const toTranslate = [];
       const indexMap = [];
 
       texts.forEach((text, i) => {
-        const key = `${clientId}::${source_lang || "auto"}::${glossary_id || "none"}::${requestedFormality}::${getCacheKey(text, target_lang)}`;
+        const key = `${clientId}::${apiKeyScope}::${source_lang || "auto"}::${glossary_id || "none"}::${requestedFormality}::${getCacheKey(text, target_lang)}`;
 
         if (cache.has(key)) {
           results[i] = cache.get(key);
@@ -545,7 +578,7 @@ async function startServer() {
 
           results[idx] = translated;
 
-          const key = `${clientId}::${source_lang || "auto"}::${glossary_id || "none"}::${requestedFormality}::${getCacheKey(texts[idx], target_lang)}`;
+          const key = `${clientId}::${apiKeyScope}::${source_lang || "auto"}::${glossary_id || "none"}::${requestedFormality}::${getCacheKey(texts[idx], target_lang)}`;
           setCache(key, translated);
         });
       }
@@ -567,7 +600,7 @@ async function startServer() {
       res.json({
         character_count: usage.character?.count || 0,
         character_limit: usage.character?.limit || 0,
-        account_type: runtime.secrets.deeplApiKey.endsWith(":fx") ? "free" : "pro"
+        account_type: req.deepLApiKey.endsWith(":fx") ? "free" : "pro"
       });
 
     } catch (err) {
@@ -580,14 +613,16 @@ async function startServer() {
       status: runtime.setupRequired ? "setup_required" : "ok",
       cache_size: cache.size,
       tls: runtime.config.tls.enabled,
+      deployment_mode: runtime.config.deploymentMode,
+      public_url: runtime.config.publicUrl || null,
       loopback_only: ["127.0.0.1", "localhost", "::1"].includes(HOST.toLowerCase())
     });
   });
 
   app.get("/identity", (req, res) => {
     res.json({
-      account_id: runtime.secrets.accountId,
-      account_type: runtime.secrets.deeplApiKey.endsWith(":fx") ? "free" : "pro"
+      account_id: req.tenantId,
+      account_type: req.deepLApiKey.endsWith(":fx") ? "free" : "pro"
     });
   });
 
@@ -716,7 +751,13 @@ async function startServer() {
   }
   const protocol = runtime.config.tls.enabled ? "https" : "http";
   activeServer = server.listen(PORT, HOST, () => {
-    console.log(`✅ Proxy running at ${protocol}://${HOST}:${PORT}`);
+    console.log(`Deep Translate Proxy is listening on ${HOST}:${PORT}`);
+    if (runtime.config.deploymentMode === "remote") {
+      console.log(`Public proxy URL: ${runtime.config.publicUrl}`);
+    } else {
+      console.log(`Local proxy URL: ${protocol}://${HOST}:${PORT}`);
+    }
+    console.log(`Deployment mode: ${runtime.config.deploymentMode}`);
     if (runtime.config.allowInsecureNetwork && !runtime.config.tls.enabled) {
       console.warn("⚠️ Unencrypted non-loopback access was explicitly enabled. Use only on a trusted LAN.");
     }
@@ -725,7 +766,7 @@ async function startServer() {
       console.log("Open this one-time setup URL in your browser:");
       console.log(`${protocol}://localhost:${PORT}/setup?token=${encodeURIComponent(setupAccessToken)}\n`);
     } else {
-      console.log("🟢 Ready\n");
+      console.log("");
       if (shouldShowConnectionAtStartup()) {
         console.log("Connection string to copy into Foundry VTT:");
         console.log(`${connectionString(runtime)}\n`);
@@ -734,6 +775,10 @@ async function startServer() {
       }
     }
   });
+  activeServer.requestTimeout = 120_000;
+  activeServer.headersTimeout = 15_000;
+  activeServer.keepAliveTimeout = 10_000;
+  activeServer.maxRequestsPerSocket = 500;
 }
 
 if (require.main === module) {

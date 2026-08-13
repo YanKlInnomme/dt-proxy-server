@@ -6,8 +6,10 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
+const originWriteQueues = new WeakMap();
 
 const DEFAULT_CONFIG = {
+  deploymentMode: "local",
   host: "127.0.0.1",
   port: 3001,
   publicUrl: "",
@@ -37,9 +39,60 @@ function isLoopbackHost(host) {
   return ["127.0.0.1", "localhost", "::1"].includes(String(host).trim().toLowerCase());
 }
 
+function normalizeDeploymentMode(value) {
+  const mode = String(value ?? "local").trim().toLowerCase();
+  if (mode !== "local" && mode !== "remote") {
+    throw new Error('Deployment mode must be either "local" or "remote"');
+  }
+  return mode;
+}
+
+function validatePublicProxyUrl(value, deploymentMode = "remote") {
+  let url;
+  try {
+    url = new URL(String(value ?? "").trim());
+  } catch {
+    throw new Error("The proxy public URL is invalid");
+  }
+  if (!url.hostname || !["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new Error("The proxy public URL is invalid");
+  }
+  if (deploymentMode === "remote" && url.protocol !== "https:") {
+    throw new Error("Remote mode requires a public HTTPS URL");
+  }
+  if (deploymentMode === "remote" && isLoopbackHost(url.hostname)) {
+    throw new Error("Remote mode does not allow localhost or loopback public URLs");
+  }
+  return url.toString().replace(/\/+$/, "");
+}
+
+function validateFoundryOrigin(value) {
+  let url;
+  try {
+    url = new URL(String(value ?? "").trim());
+  } catch {
+    throw new Error("The Foundry origin is invalid");
+  }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password ||
+      url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("The Foundry origin must contain only its scheme, host, and optional port");
+  }
+  return url.origin;
+}
+
+function validateDeploymentSecurity(config) {
+  config.deploymentMode = normalizeDeploymentMode(config.deploymentMode);
+  if (config.deploymentMode === "local") return;
+  config.publicUrl = validatePublicProxyUrl(config.publicUrl, "remote");
+  config.allowedOrigins = config.allowedOrigins.map(validateFoundryOrigin);
+  if (!config.tls.enabled && !config.behindTrustedProxy) {
+    throw new Error("Remote mode requires direct TLS or a trusted HTTPS reverse proxy");
+  }
+}
+
 function validateNetworkSecurity(config) {
   if (isLoopbackHost(config.host)) return;
-  if (!config.allowedOrigins.length) {
+  if (!config.allowedOrigins.length && config.deploymentMode !== "remote") {
     throw new Error("ALLOWED_ORIGINS must contain the exact Foundry origin when listening outside loopback");
   }
   if (config.tls.enabled) return;
@@ -120,7 +173,8 @@ function resolvePaths() {
   const configPath = path.resolve(
     process.env.DT_PROXY_CONFIG || path.join(applicationDirectory, "deep-translate-proxy-config.json")
   );
-  return { applicationDirectory, configPath };
+  const defaultSecretsPath = path.resolve(path.dirname(configPath), DEFAULT_CONFIG.secretsFile);
+  return { applicationDirectory, configPath, defaultSecretsPath };
 }
 
 async function promptForSetup(config, secrets, { needsConfig, needsApiKey }) {
@@ -130,6 +184,18 @@ async function promptForSetup(config, secrets, { needsConfig, needsApiKey }) {
   try {
     if (needsConfig) {
       while (true) {
+        const answer = (await terminal.question(
+          `Deployment mode (type "local" or "remote") [${config.deploymentMode}]: `
+        )).trim();
+        try {
+          config.deploymentMode = normalizeDeploymentMode(answer || config.deploymentMode);
+          changed = true;
+          break;
+        } catch (error) {
+          console.error(error.message);
+        }
+      }
+      while (true) {
         const answer = (await terminal.question(`Proxy port [${config.port}]: `)).trim();
         try {
           config.port = validatePort(answer || config.port);
@@ -138,6 +204,19 @@ async function promptForSetup(config, secrets, { needsConfig, needsApiKey }) {
         } catch (error) {
           console.error(error.message);
         }
+      }
+      if (config.deploymentMode === "remote") {
+        while (true) {
+          const answer = (await terminal.question("Public HTTPS proxy URL: ")).trim();
+          try {
+            config.publicUrl = validatePublicProxyUrl(answer, "remote");
+            break;
+          } catch (error) {
+            console.error(error.message);
+          }
+        }
+        config.behindTrustedProxy = !config.tls.enabled;
+        config.trustProxyHops = config.behindTrustedProxy ? 1 : 0;
       }
     }
     if (needsApiKey) {
@@ -162,6 +241,14 @@ async function loadRuntimeConfiguration() {
     tls: { ...DEFAULT_CONFIG.tls, ...(storedConfig?.tls ?? {}) },
     rateLimits: { ...DEFAULT_CONFIG.rateLimits, ...(storedConfig?.rateLimits ?? {}) }
   };
+  const inferredStoredMode = storedConfig?.deploymentMode ?? (
+    storedConfig?.publicUrl && !isLoopbackHost((() => {
+      try { return new URL(storedConfig.publicUrl).hostname; } catch { return ""; }
+    })()) ? "remote" : DEFAULT_CONFIG.deploymentMode
+  );
+  config.deploymentMode = normalizeDeploymentMode(
+    process.env.DT_PROXY_MODE ?? inferredStoredMode
+  );
   const portArgument = process.argv.find(argument => argument.startsWith("--port="))?.slice(7);
   config.port = validatePort(process.env.PORT ?? portArgument ?? config.port);
   config.host = String(process.env.HOST ?? config.host).trim() || DEFAULT_CONFIG.host;
@@ -204,6 +291,7 @@ async function loadRuntimeConfiguration() {
   if (config.tls.enabled && (!config.tls.certificateFile || !config.tls.privateKeyFile)) {
     throw new Error("TLS is enabled but DT_PROXY_TLS_CERT or DT_PROXY_TLS_KEY is missing");
   }
+  validateDeploymentSecurity(config);
   validateNetworkSecurity(config);
 
   const secretsPath = path.resolve(path.dirname(configPath), process.env.DT_PROXY_SECRETS || config.secretsFile);
@@ -218,6 +306,8 @@ async function loadRuntimeConfiguration() {
     needsConfig: !storedConfig && !process.env.PORT && !portArgument,
     needsApiKey: !secrets.deeplApiKey
   });
+  validateDeploymentSecurity(prompted.config);
+  validateNetworkSecurity(prompted.config);
   const runtime = {
     config: prompted.config,
     secrets: prompted.secrets,
@@ -255,16 +345,41 @@ async function persistRuntimeSecrets(runtime, previousSecrets = {}) {
   });
 }
 
-async function completeWebSetup(runtime, deeplApiKey) {
+async function completeWebSetup(runtime, deeplApiKey, deployment = {}) {
   if (!runtime.setupRequired) throw new Error("The proxy is already configured");
   const normalizedKey = String(deeplApiKey ?? "").trim();
   if (!normalizedKey || normalizedKey.length > 500) throw new Error("A valid DeepL API key is required");
+
+  const mode = normalizeDeploymentMode(deployment.deploymentMode ?? runtime.config.deploymentMode);
+  runtime.config.deploymentMode = mode;
+  if (mode === "remote") {
+    runtime.config.publicUrl = validatePublicProxyUrl(deployment.publicUrl, "remote");
+    runtime.config.behindTrustedProxy = !runtime.config.tls.enabled;
+    runtime.config.trustProxyHops = runtime.config.behindTrustedProxy ? 1 : 0;
+  } else {
+    runtime.config.publicUrl = "";
+  }
+  validateDeploymentSecurity(runtime.config);
+  validateNetworkSecurity(runtime.config);
 
   runtime.secrets.deeplApiKey = normalizedKey;
   await persistRuntimeSecrets(runtime);
   await writePrivateJson(runtime.configPath, runtime.config);
   runtime.setupRequired = false;
   return runtime;
+}
+
+async function rememberFoundryOrigin(runtime, value) {
+  const origin = validateFoundryOrigin(value);
+  const previous = originWriteQueues.get(runtime) ?? Promise.resolve();
+  const current = previous.then(async () => {
+    if (runtime.config.allowedOrigins.includes(origin)) return origin;
+    runtime.config.allowedOrigins.push(origin);
+    await writePrivateJson(runtime.configPath, runtime.config);
+    return origin;
+  });
+  originWriteQueues.set(runtime, current.catch(() => {}));
+  return current;
 }
 
 function connectionString(runtime) {
@@ -295,8 +410,13 @@ module.exports = {
   isLoopbackHost,
   loadRuntimeConfiguration,
   regenerateAccessToken,
+  rememberFoundryOrigin,
   resolvePaths,
+  normalizeDeploymentMode,
+  validateDeploymentSecurity,
+  validateFoundryOrigin,
   validateNetworkSecurity,
   validatePort,
+  validatePublicProxyUrl,
   writePrivateJson
 };

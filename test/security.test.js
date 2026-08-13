@@ -12,8 +12,11 @@ const {
 } = require("../server");
 const {
   generateAccessToken,
+  validateDeploymentSecurity,
+  validateFoundryOrigin,
   validateNetworkSecurity,
-  validatePort
+  validatePort,
+  validatePublicProxyUrl
 } = require("../runtime-config");
 
 test("generates a high-entropy proxy token", () => {
@@ -99,6 +102,35 @@ test("validates configured ports", () => {
   assert.throws(() => validatePort("not-a-port"));
 });
 
+test("remote mode requires a non-loopback HTTPS public URL", () => {
+  assert.equal(
+    validatePublicProxyUrl("https://translate.example.test/", "remote"),
+    "https://translate.example.test"
+  );
+  assert.throws(() => validatePublicProxyUrl("http://translate.example.test", "remote"), /HTTPS/);
+  assert.throws(() => validatePublicProxyUrl("https://127.0.0.1:3001", "remote"), /loopback/);
+  assert.equal(validatePublicProxyUrl("http://127.0.0.1:3001", "local"), "http://127.0.0.1:3001");
+});
+
+test("accepts only exact HTTP or HTTPS Foundry origins", () => {
+  assert.equal(validateFoundryOrigin("https://foundry.example.test:30000"), "https://foundry.example.test:30000");
+  assert.throws(() => validateFoundryOrigin("https://foundry.example.test/game"), /scheme, host/);
+  assert.throws(() => validateFoundryOrigin("ftp://foundry.example.test"), /scheme, host/);
+});
+
+test("remote deployment can learn origins but still requires a secured frontend", () => {
+  const base = {
+    deploymentMode: "remote",
+    publicUrl: "https://translate.example.test",
+    allowedOrigins: ["https://foundry.example.test"],
+    tls: { enabled: false },
+    behindTrustedProxy: true
+  };
+  assert.doesNotThrow(() => validateDeploymentSecurity({ ...base }));
+  assert.doesNotThrow(() => validateDeploymentSecurity({ ...base, allowedOrigins: [] }));
+  assert.throws(() => validateDeploymentSecurity({ ...base, behindTrustedProxy: false }), /TLS/);
+});
+
 test("refuses unsafe non-loopback listeners by default", () => {
   const base = {
     host: "0.0.0.0",
@@ -118,4 +150,11 @@ test("refuses unsafe non-loopback listeners by default", () => {
     publicUrl: "https://proxy.example.test"
   }));
   assert.doesNotThrow(() => validateNetworkSecurity({ ...base, host: "127.0.0.1", allowedOrigins: [] }));
+  assert.doesNotThrow(() => validateNetworkSecurity({
+    ...base,
+    deploymentMode: "remote",
+    allowedOrigins: [],
+    behindTrustedProxy: true,
+    publicUrl: "https://proxy.example.test"
+  }));
 });

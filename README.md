@@ -6,18 +6,32 @@
 
 # Deep Translate Proxy
 
-Local proxy server designed for the **Deep Translate** module for Foundry VTT.
-It acts as a secure bridge between Foundry and the DeepL API, enabling efficient batch translation with session-based caching.
+Self-hosted proxy server designed for the **Deep Translate** module for Foundry VTT.
+It acts as an authenticated bridge between Foundry and the DeepL API, with a
+bounded in-memory cache for duplicate translations.
+
+This repository contains only the free **self-hosted proxy**. Its setup assistant
+uses the terms `local` and `remote` to describe how this same self-hosted proxy
+is reached over the network:
+
+* `local`: the proxy is reached on the computer running it;
+* `remote`: the proxy is reached through a public HTTPS address that you operate.
+
+These deployment modes are not the Yanklinnomme **hosted service** offered in
+the Deep Translate module.
 
 ---
 
 ## Features
 
 * **Batch translation** optimized for Foundry journals and rich content
-* **Session-based cache** to avoid duplicate API costs
+* **Bounded in-memory cache** to reduce duplicate DeepL requests
 * **DeepL API key remains in the proxy and is never exposed to Foundry**
 * **HTML-aware translation** (preserves formatting)
 * Works locally, via Docker, or as a standalone executable
+* Supports secured remote deployment behind HTTPS or a trusted reverse proxy
+* Learns the first authenticated Foundry origin in guided remote mode
+* Isolates cached translations by tenant and DeepL API key
 * Built specifically for **Foundry VTT workflows**
 
 ---
@@ -40,39 +54,31 @@ This results in errors such as:
 Failed to fetch
 ```
 
-### The usual workaround
+### Why self-host this proxy?
 
-Some solutions rely on a **remote proxy server** to bypass this limitation.
-However, this introduces several drawbacks:
+This repository lets you run a **self-hosted proxy** locally or on infrastructure
+you control. It avoids an additional managed relay between this proxy and DeepL.
 
-* Your **API key is sent to a third-party server**
-* Your **translated content passes through an external service**
-* You depend on infrastructure you do not control
-* Potential performance bottlenecks
+Self-hosting provides operational control but also makes you responsible for
+installation, updates, availability, backups of the private configuration, and
+secure network exposure. The proxy is designed to:
 
----
-
-### Deep Translate approach
-
-Deep Translate uses a **local proxy server running on your machine**.
-
-This provides key advantages:
-
-* **Full control over your API key**
-* **No third-party relay between the proxy and DeepL**
-* **Faster translations (no external relay)**
-* **Built-in caching reduces API usage and cost**
-* **Full control over your translation pipeline**
+* keep the DeepL key in the proxy rather than the Foundry browser;
+* authenticate Foundry requests with a dedicated proxy token;
+* reduce duplicate DeepL requests through an in-memory cache; and
+* support local use or a secured remote deployment.
 
 ---
 
 ### How it works
 
 ```
-Foundry VTT → Local Proxy → DeepL API → Local Proxy → Foundry VTT
+Foundry VTT → Self-hosted Proxy → DeepL API → Self-hosted Proxy → Foundry VTT
 ```
 
-The proxy acts as a **secure and efficient bridge**, solving CORS issues while improving performance and reducing costs.
+The proxy provides the bridge required by the browser. Caching may reduce
+duplicate requests, but no particular performance, cost, availability, or
+translation result is guaranteed.
 
 ---
 
@@ -85,6 +91,14 @@ The Git repository contains the source code only. Generated dependencies
 (`node_modules/`) and build artifacts (`dist/`) are intentionally excluded and
 must not be downloaded from the repository tree.
 
+### Prefer a managed service?
+
+Deep Translate 2.5.0 also offers a separate Yanklinnomme-hosted proxy through
+eligible Buy Me a Coffee memberships. It is configured directly in the Foundry
+module and is not installed from this repository. Current membership options,
+prices, and terms are maintained on Buy Me a Coffee. Hosted access does not
+include a DeepL plan, credits, or API usage.
+
 ---
 
 ## Installation
@@ -93,9 +107,14 @@ must not be downloaded from the repository tree.
 
 1. Download the Windows `.exe` from the latest GitHub release
 2. Double-click to launch
-3. Choose a port (default: `3001`)
+3. Choose `local` (recommended) or `remote` deployment
+4. Choose a port (default: `3001`)
+5. Enter the DeepL API key
+6. In remote mode, enter the public HTTPS URL served by your TLS endpoint or
+   trusted reverse proxy
 
-👉 The proxy is now running.
+The proxy then displays the complete `address#token` connection string to copy
+into Deep Translate. Keep the generated configuration and secrets files private.
 
 ---
 
@@ -108,8 +127,10 @@ chmod +x dt-proxy-server-linux
 ./dt-proxy-server-linux
 ```
 
-On first launch, you will be prompted for the port and the DeepL API key. The
-proxy writes general options to `deep-translate-proxy-config.json`, secrets to
+On first launch, choose `local` (recommended) or `remote`, then enter the port
+and the DeepL API key. Remote mode also asks for the public HTTPS proxy URL. The
+proxy writes general options to
+`deep-translate-proxy-config.json`, secrets to
 `deep-translate-proxy-secrets.json`, and
 prints an `address#token` connection string to copy into Foundry VTT.
 
@@ -135,8 +156,10 @@ npm start
 ```
 
 `npm ci` recreates the ignored `node_modules/` directory from
-`package-lock.json`. You will then be prompted to choose a port (default:
-`3001`).
+`package-lock.json`. On first start, the same assistant used by the executables
+asks for the deployment mode, port, and DeepL API key. Remote mode additionally
+requires the public HTTPS proxy URL. Copy the generated `address#token` string
+into the Deep Translate module settings.
 
 ---
 
@@ -161,10 +184,12 @@ Open the one-time `/setup?token=...` URL printed there. The random setup token
 is exchanged for a protected, short-lived cookie and immediately removed from
 the browser URL. A plain `/setup` URL is deliberately rejected.
 
-Enter the DeepL API key in the setup page. The proxy validates it, stores it in
+Choose local or remote deployment and enter the DeepL API key in the setup
+page. Remote mode additionally requires the public HTTPS proxy URL. The proxy
+validates the configuration and key, stores them in
 the private Docker data volume, generates the proxy token, and displays the
 complete `address#token` connection string to copy into Foundry VTT. No `.env`
-file or manual Docker Desktop setting is required.
+file or manual Docker Desktop setting is required for local mode.
 
 The connection string is also written to the container logs after setup:
 
@@ -217,6 +242,10 @@ http://localhost:3001#dt_proxy-token-displayed-at-startup
 
 Foundry never receives or stores the DeepL API key.
 
+Select **Self-hosted proxy** in Deep Translate. The module's **Hosted service**
+choice refers to the separate managed Yanklinnomme service, not to this proxy's
+`remote` network-deployment mode.
+
 ---
 
 ## Usage
@@ -235,6 +264,24 @@ By default, the proxy listens only on `127.0.0.1`. Protected routes reject
 requests without an `Origin` header and always require the proxy Bearer token.
 Loopback browser origins are accepted for local use.
 
+The first-time assistant offers two network deployment modes for this
+self-hosted proxy:
+
+* `local` keeps the current loopback connection and is recommended for normal
+  use, including a remotely hosted Foundry server opened from the same computer;
+* `remote` requires a non-loopback public HTTPS URL and either direct TLS or a
+  trusted HTTPS reverse proxy. HTTP and loopback public URLs are rejected. The
+  first request carrying a valid proxy token automatically records its exact
+  Foundry origin; later requests remain restricted to recorded origins.
+
+The guided remote mode assumes one trusted HTTPS reverse-proxy hop unless direct
+TLS is already configured. The public HTTPS endpoint may be Internet-facing;
+the proxy's plain internal port must not be. When the reverse proxy runs on the
+same host, keep the Node listener on `127.0.0.1`. With Docker, publish port 3001
+only on `127.0.0.1` when the reverse proxy is on the host, or expose it solely on
+a private Docker network to a reverse-proxy container. Use `0.0.0.0` only when
+the listener itself uses direct TLS or is protected on a trusted private network.
+
 Listening outside loopback is fail-closed. `ALLOWED_ORIGINS` must contain the
 exact Foundry origins and the listener must use one of these modes:
 
@@ -245,6 +292,7 @@ exact Foundry origins and the listener must use one of these modes:
 Direct TLS example:
 
 ```bash
+DT_PROXY_MODE=remote \
 HOST=0.0.0.0 \
 ALLOWED_ORIGINS=https://foundry.example.test \
 DT_PROXY_TLS_ENABLED=true \
@@ -257,7 +305,8 @@ node server.js
 Trusted HTTPS reverse proxy example:
 
 ```bash
-HOST=0.0.0.0 \
+DT_PROXY_MODE=remote \
+HOST=127.0.0.1 \
 ALLOWED_ORIGINS=https://foundry.example.test \
 DT_PROXY_BEHIND_TRUSTED_PROXY=true \
 DT_PROXY_TRUST_PROXY_HOPS=1 \
@@ -276,6 +325,7 @@ on an Internet-facing host. Requests without `Origin` remain disabled unless
 non-browser client.
 
 Docker and unattended deployments support `DEEPL_API_KEY`, `DT_PROXY_TOKEN`,
+`DT_PROXY_MODE`,
 `PORT`, `HOST`, `ALLOWED_ORIGINS`, `DT_PROXY_PUBLIC_URL`, `DT_PROXY_CONFIG`,
 `DT_PROXY_SECRETS`, `DT_PROXY_TLS_ENABLED`, `DT_PROXY_TLS_CERT`,
 `DT_PROXY_TLS_KEY`, `DT_PROXY_BEHIND_TRUSTED_PROXY`,
@@ -410,9 +460,17 @@ To use a synchronized glossary, add `source_lang` and `glossary_id` to
 ```json
 {
   "status": "ok",
-  "cache_size": 42
+  "cache_size": 42,
+  "tls": false,
+  "deployment_mode": "local",
+  "public_url": null,
+  "loopback_only": true
 }
 ```
+
+`status` is `setup_required` until first-time configuration is complete.
+`cache_size` reports entries in the current process's bounded in-memory cache;
+the cache is cleared on restart and reset when it reaches 5,000 entries.
 
 ---
 
@@ -446,15 +504,15 @@ The build recreates the local `dist/` directory. This directory is intentionally
 ignored by Git: publish its files as GitHub release assets instead of committing
 them to the repository.
 
-Expected output for version 2.0.1:
+Expected output for version 2.5.0:
 
 ```
 /dist
-  deep-translate-proxy-v2.0.1-windows-x64.exe
-  deep-translate-proxy-v2.0.1-windows-x64.zip
-  deep-translate-proxy-v2.0.1-linux-x64
-  deep-translate-proxy-v2.0.1-linux-x64.zip
-  SHA256SUMS-2.0.1.txt
+  deep-translate-proxy-v2.5.0-windows-x64.exe
+  deep-translate-proxy-v2.5.0-windows-x64.zip
+  deep-translate-proxy-v2.5.0-linux-x64
+  deep-translate-proxy-v2.5.0-linux-x64.zip
+  SHA256SUMS-2.5.0.txt
 ```
 
 The ZIP packages also contain the README, project license, and third-party
@@ -463,6 +521,16 @@ license notices. Publish the checksum file alongside the downloads.
 ---
 
 ## Changelog
+
+### Version 2.5.0
+
+* Added guided local and secured remote deployment modes
+* Required a public HTTPS URL for guided remote deployments
+* Added trusted reverse-proxy configuration and explicit hop handling
+* Added automatic registration of the first authenticated Foundry origin
+* Added tenant and DeepL-key isolation to the translation cache
+* Added request, header, keep-alive, and per-socket limits
+* Documented the separate Yanklinnomme hosted-proxy subscription
 
 ### Version 2.0.1
 
